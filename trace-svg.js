@@ -148,7 +148,7 @@ const createMemoizedFunctions = () => {
     args,
     fileArgs
   }) => `${file.internal.contentDigest}${JSON.stringify(args)}${JSON.stringify(fileArgs)}`);
-}; // This is very hacky, but memozied function are pretty tricky to spy on
+}; // This is very hacky, but memoized function are pretty tricky to spy on
 // in tests ;(
 
 

@@ -18,30 +18,28 @@ const imageminWebp = require(`imagemin-webp`);
 
 const _ = require(`lodash`);
 
-const crypto = require(`crypto`); // Try to enable the use of SIMD instructions. Seems to provide a smallish
+const crypto = require(`crypto`);
+
+const {
+  cpuCoreCount
+} = require(`gatsby-core-utils`);
+
+const got = require(`got`); // Try to enable the use of SIMD instructions. Seems to provide a smallish
 // speedup on resizing heavy loads (~10%). Sharp disables this feature by
 // default as there's been problems with segfaulting in the past but we'll be
 // adventurous and see what happens with it on.
 
 
-sharp.simd(true);
+sharp.simd(true); // Handle Sharp's concurrency based on the Gatsby CPU count
+// See: http://sharp.pixelplumbing.com/en/stable/api-utility/#concurrency
+// See: https://www.gatsbyjs.org/docs/multi-core-builds/
 
-try {
-  // Handle Sharp's concurrency based on the Gatsby CPU count
-  // See: http://sharp.pixelplumbing.com/en/stable/api-utility/#concurrency
-  // See: https://www.gatsbyjs.org/docs/multi-core-builds/
-  const cpuCoreCount = require(`gatsby/dist/utils/cpu-core-count`);
-
-  sharp.concurrency(cpuCoreCount());
-} catch (_unused) {} // if above throws error this probably means that used Gatsby version
-// doesn't support cpu-core-count utility.
-
+sharp.concurrency(cpuCoreCount());
 /**
  * List of arguments used by `processFile` function.
  * This is used to generate args hash using only
  * arguments that affect output of that function.
  */
-
 
 const argsWhitelist = [`height`, `width`, `cropFocus`, `toFormat`, `pngCompressionLevel`, `quality`, `jpegProgressive`, `grayscale`, `rotate`, `trim`, `duotone`, `fit`, `background`];
 /**
@@ -70,10 +68,32 @@ const argsWhitelist = [`height`, `width`, `cropFocus`, `toFormat`, `pngCompressi
  * @param {Transform[]} transforms
  */
 
-exports.processFile = (file, transforms, options = {}) => {
+exports.processFile = (file, contentDigest, transforms, options = {}) => {
   let pipeline;
 
   try {
+    // adds gatsby cloud image service to gatsby-sharp
+    // this is an experimental api so it can be removed without any warnings
+    if (process.env.GATSBY_CLOUD_IMAGE_SERVICE_URL) {
+      let cloudPromise;
+      return transforms.map(transform => {
+        if (!cloudPromise) {
+          cloudPromise = got.post(process.env.GATSBY_CLOUD_IMAGE_SERVICE_URL, {
+            body: {
+              file,
+              hash: contentDigest,
+              transforms,
+              options
+            },
+            json: true
+          }).then(() => transform);
+          return cloudPromise;
+        }
+
+        return Promise.resolve(transform);
+      });
+    }
+
     pipeline = sharp(file); // Keep Metadata
 
     if (!options.stripMetadata) {
@@ -213,7 +233,26 @@ exports.createArgsDigest = args => {
     return argsWhitelist.includes(key);
   });
 
-  const argsDigest = crypto.createHash(`md5`).update(JSON.stringify(filtered, Object.keys(filtered).sort())).digest(`hex`);
+  const argsDigest = crypto.createHash(`md5`).update(JSON.stringify(sortKeys(filtered))).digest(`hex`);
   const argsDigestShort = argsDigest.substr(argsDigest.length - 5);
   return argsDigestShort;
 };
+
+const sortKeys = object => {
+  var sortedObj = {},
+      keys = _.keys(object);
+
+  keys = _.sortBy(keys, key => key);
+
+  _.each(keys, key => {
+    if (typeof object[key] == `object` && !(object[key] instanceof Array)) {
+      sortedObj[key] = sortKeys(object[key]);
+    } else {
+      sortedObj[key] = object[key];
+    }
+  });
+
+  return sortedObj;
+};
+
+exports.sortKeys = sortKeys;

@@ -114,6 +114,7 @@ function queueImageResizing({
   const job = {
     args: options,
     inputPath: file.absolutePath,
+    contentDigest: file.internal.contentDigest,
     outputPath: filePath
   };
   queue.set(prefixedSrc, job); // schedule job immediately - this will be changed when image processing on demand is implemented
@@ -246,7 +247,7 @@ const cachifiedProcess = async ({
 
 async function base64(arg) {
   if (arg.cache) {
-    // Not all tranformer plugins are going to provide cache
+    // Not all transformer plugins are going to provide cache
     return await cachifiedProcess(arg, generateCacheKey, generateBase64);
   }
 
@@ -255,7 +256,7 @@ async function base64(arg) {
 
 async function traceSVG(args) {
   if (args.cache) {
-    // Not all tranformer plugins are going to provide cache
+    // Not all transformer plugins are going to provide cache
     return await cachifiedProcess(args, generateCacheKey, notMemoizedtraceSVG);
   }
 
@@ -280,6 +281,24 @@ async function getTracedSVG({
   }
 
   return undefined;
+}
+
+async function stats({
+  file,
+  reporter
+}) {
+  let imgStats;
+
+  try {
+    imgStats = await sharp(file.absolutePath).stats();
+  } catch (err) {
+    reportError(`Failed to get stats for image ${file.absolutePath}`, err, reporter);
+    return null;
+  }
+
+  return {
+    isTransparent: !imgStats.isOpaque
+  };
 }
 
 async function fluid({
@@ -339,9 +358,9 @@ async function fluid({
   // multiple sizes of the same input file)
 
 
-  const fluidSizes = [options[fixedDimension]];
+  const fluidSizes = [options[fixedDimension] // ensure maxWidth (or maxHeight) is added
+  ]; // use standard breakpoints if no custom breakpoints are specified
 
-  // use standard breakpoints if no custom breakpoints are specified
   if (!options.srcSetBreakpoints || !options.srcSetBreakpoints.length) {
     fluidSizes.push(options[fixedDimension] / 4);
     fluidSizes.push(options[fixedDimension] / 2);
@@ -376,9 +395,8 @@ async function fluid({
   const images = sortedSizes.map(size => {
     const arrrgs = { ...options,
       [otherDimensionAttr]: undefined,
-      [dimensionAttr]: Math.round(size) // Queue sizes for processing.
-
-    };
+      [dimensionAttr]: Math.round(size)
+    }; // Queue sizes for processing.
 
     if (options.maxWidth !== undefined && options.maxHeight !== undefined) {
       arrrgs.height = Math.round(size * (options.maxHeight / options.maxWidth));
@@ -404,9 +422,9 @@ async function fluid({
       toFormat: options.toFormat,
       toFormatBase64: options.toFormatBase64,
       width: base64Width,
-      height: base64Height // Get base64 version
+      height: base64Height
+    }; // Get base64 version
 
-    };
     base64Image = await base64({
       file,
       args: base64Args,
@@ -501,9 +519,8 @@ async function fixed({
 
   const images = sortedSizes.map(size => {
     const arrrgs = { ...options,
-      [fixedDimension]: Math.round(size) // Queue images for processing.
-
-    };
+      [fixedDimension]: Math.round(size)
+    }; // Queue images for processing.
 
     if (options.width !== undefined && options.height !== undefined) {
       arrrgs.height = Math.round(size * (options.height / options.width));
@@ -525,9 +542,9 @@ async function fixed({
       grayscale: options.grayscale,
       rotate: options.rotate,
       toFormat: options.toFormat,
-      toFormatBase64: options.toFormatBase64 // Get base64 version
+      toFormatBase64: options.toFormatBase64
+    }; // Get base64 version
 
-    };
     base64Image = await base64({
       file,
       args: base64Args,
@@ -596,3 +613,4 @@ exports.resolutions = fixed;
 exports.fluid = fluid;
 exports.fixed = fixed;
 exports.getImageSize = getImageSize;
+exports.stats = stats;
