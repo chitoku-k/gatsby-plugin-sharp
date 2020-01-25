@@ -1,12 +1,7 @@
-"use strict";
-
-exports.__esModule = true;
-exports.createProgress = createProgress;
-
 const ProgressBar = require(`progress`); // TODO remove in V3
 
 
-function createProgress(message, reporter) {
+exports.createProgress = function createProgress(message, reporter) {
   if (reporter && reporter.createProgress) {
     return reporter.createProgress(message);
   }
@@ -19,8 +14,8 @@ function createProgress(message, reporter) {
   return {
     start() {},
 
-    tick() {
-      bar.tick();
+    tick(increment = 1) {
+      bar.tick(increment);
     },
 
     done() {},

@@ -1,5 +1,3 @@
-"use strict";
-
 // This is very hacky, but this should be temporary hack
 // until we make "sharp" a peerDependency and can be removed afterwards.
 // It's not done yet because it would cause too much friction.

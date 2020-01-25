@@ -1,7 +1,6 @@
-"use strict";
-
 const {
-  setBoundActionCreators // queue: jobQueue,
+  setBoundActionCreators,
+  getProgressBar // queue: jobQueue,
   // reportError,
 
 } = require(`./index`);
@@ -42,7 +41,20 @@ const {
 //     .catch(({ err, message }) => {
 //       reportError(message || err.message, err, reporter)
 //     })
+// create the progressbar once and it will be killed in another lifecycle
 
+
+const finishProgressBar = () => {
+  const progressBar = getProgressBar();
+
+  if (progressBar) {
+    progressBar.done();
+  }
+};
+
+exports.onPostBuild = () => finishProgressBar();
+
+exports.onCreateDevServer = () => finishProgressBar();
 
 exports.onPreBootstrap = ({
   actions
