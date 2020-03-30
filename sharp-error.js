@@ -1,5 +1,10 @@
-// This custom error should help us debug sharp errors when occuring.
-exports.SharpError = class SharpError extends Error {
+"use strict";
+
+exports.__esModule = true;
+exports.SharpError = void 0;
+
+// This custom error should help us debug sharp errors when occurring.
+class SharpError extends Error {
   /**
    *
    * @param {string} message
@@ -21,3 +26,5 @@ ${err.message}`;
   }
 
 }
+
+exports.SharpError = SharpError;

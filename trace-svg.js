@@ -1,3 +1,5 @@
+"use strict";
+
 const {
   promisify
 } = require(`bluebird`);
@@ -82,7 +84,16 @@ const optimize = svg => {
 
   const svgo = new SVGO({
     multipass: true,
-    floatPrecision: 0
+    floatPrecision: 0,
+    plugins: [{
+      removeViewBox: false
+    }, {
+      addAttributesToSVGElement: {
+        attributes: [{
+          preserveAspectRatio: `none`
+        }]
+      }
+    }]
   });
   return svgo.optimize(svg).then(({
     data

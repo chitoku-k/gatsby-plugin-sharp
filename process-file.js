@@ -1,3 +1,5 @@
+"use strict";
+
 const sharp = require(`./safe-sharp`);
 
 const fs = require(`fs-extra`);
@@ -175,12 +177,12 @@ exports.processFile = (file, transforms, options = {}) => {
       }
 
       if (options.useMozJpeg && transformArgs.toFormat === `jpg`) {
-        await compressJpg(clonedPipeline, outputPath, args);
+        await compressJpg(clonedPipeline, outputPath, transformArgs);
         return transform;
       }
 
       if (transformArgs.toFormat === `webp`) {
-        await compressWebP(clonedPipeline, outputPath, args);
+        await compressWebP(clonedPipeline, outputPath, transformArgs);
         return transform;
       }
 
@@ -221,7 +223,8 @@ const compressJpg = (pipeline, outputPath, options) => pipeline.toBuffer().then(
 
 const compressWebP = (pipeline, outputPath, options) => pipeline.toBuffer().then(sharpBuffer => imagemin.buffer(sharpBuffer, {
   plugins: [imageminWebp({
-    quality: options.webpQuality || options.quality
+    quality: options.webpQuality || options.quality,
+    metadata: options.stripMetadata ? `none` : `all`
   })]
 }).then(imageminBuffer => fs.writeFile(outputPath, imageminBuffer)));
 

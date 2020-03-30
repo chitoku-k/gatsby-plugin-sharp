@@ -1,3 +1,5 @@
+"use strict";
+
 const sharp = require(`./safe-sharp`);
 
 module.exports = async function duotone(duotone, format, pipeline) {

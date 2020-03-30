@@ -1,3 +1,5 @@
+"use strict";
+
 const _ = require(`lodash`); /// Plugin options are loaded onPreBootstrap in gatsby-node
 
 
@@ -23,7 +25,8 @@ const generalArgs = {
   pathPrefix: ``,
   toFormat: ``,
   toFormatBase64: ``,
-  sizeByPixelDensity: false
+  sizeByPixelDensity: false,
+  rotate: 0
 };
 let pluginOptions = Object.assign({}, pluginDefaults);
 
@@ -54,7 +57,7 @@ exports.createTransformObject = args => {
     webpQuality: args.webpQuality,
     jpegProgressive: args.jpegProgressive || generalArgs.jpegProgressive,
     grayscale: args.grayscale || generalArgs.grayscale,
-    rotate: !!args.rotate,
+    rotate: args.rotate,
     trim: !!args.trim,
     duotone: args.duotone ? args.duotone : null,
     fit: args.fit,
@@ -136,7 +139,7 @@ exports.removeDefaultValues = (args, pluginOptions) => {
     webpQuality: args.webpQuality,
     jpegProgressive: args.jpegProgressive !== generalArgs.jpegProgressive ? args.jpegProgressive : undefined,
     grayscale: args.grayscale !== generalArgs.grayscale ? args.grayscale : undefined,
-    rotate: args.rotate ? args.rotate : undefined,
+    rotate: args.rotate !== generalArgs.rotate ? args.rotate : undefined,
     trim: args.trim ? args.trim : undefined,
     duotone: args.duotone || undefined,
     fit: args.fit,

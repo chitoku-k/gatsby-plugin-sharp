@@ -1,3 +1,5 @@
+"use strict";
+
 const reportError = (message, err, reporter) => {
   if (reporter) {
     reporter.error(message, err);

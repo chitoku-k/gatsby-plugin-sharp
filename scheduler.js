@@ -1,3 +1,8 @@
+"use strict";
+
+exports.__esModule = true;
+exports.scheduleJob = void 0;
+
 const uuidv4 = require(`uuid/v4`);
 
 const path = require(`path`);
@@ -11,6 +16,10 @@ const {
 } = require(`gatsby-core-utils`);
 
 const worker = require(`./gatsby-worker`);
+
+const {
+  createOrGetProgressBar
+} = require(`./utils`);
 
 const processImages = async (jobId, job, boundActionCreators) => {
   try {
@@ -28,7 +37,7 @@ const processImages = async (jobId, job, boundActionCreators) => {
 
 const jobsInFlight = new Map();
 
-const scheduleJob = async (job, boundActionCreators) => {
+const scheduleJob = async (job, boundActionCreators, reporter) => {
   const inputPaths = job.inputPaths.filter(inputPath => !fs.existsSync(path.join(job.outputDir, inputPath))); // all paths exists so we bail
 
   if (!inputPaths.length) {
@@ -64,6 +73,16 @@ const scheduleJob = async (job, boundActionCreators) => {
     }).then(() => {});
     jobsInFlight.set(jobDigest, cloudJob);
     return cloudJob;
+  } // If output file already exists don't re-run image processing
+  // this has been in here from the beginning, job api v2 does this correct
+  // to not break existing behahaviour we put this in here too.
+
+
+  job.args.operations = job.args.operations.filter(operation => !fs.existsSync(path.join(job.outputDir, operation.outputPath)));
+
+  if (!job.args.operations.length) {
+    jobsInFlight.set(jobDigest, Promise.resolve());
+    return jobsInFlight.get(jobDigest);
   }
 
   const jobId = uuidv4();
@@ -74,13 +93,19 @@ const scheduleJob = async (job, boundActionCreators) => {
   }, {
     name: `gatsby-plugin-sharp`
   });
+  const progressBar = createOrGetProgressBar(reporter);
+  const transformsCount = job.args.operations.length;
+  progressBar.addImageToProcess(transformsCount);
   const promise = new Promise((resolve, reject) => {
     setImmediate(() => {
-      processImages(jobId, convertedJob, boundActionCreators).then(resolve, reject);
+      processImages(jobId, convertedJob, boundActionCreators).then(result => {
+        progressBar.tick(transformsCount);
+        resolve(result);
+      }, reject);
     });
   });
   jobsInFlight.set(jobDigest, promise);
   return promise;
 };
 
-exports.scheduleJob = scheduleJob
+exports.scheduleJob = scheduleJob;
