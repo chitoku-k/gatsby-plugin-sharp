@@ -16,8 +16,6 @@ const imageminMozjpeg = require(`imagemin-mozjpeg`);
 
 const imageminPngquant = require(`imagemin-pngquant`);
 
-const imageminWebp = require(`imagemin-webp`);
-
 const {
   healOptions
 } = require(`./plugin-options`);
@@ -27,7 +25,6 @@ const {
 } = require(`./sharp-error`);
 
 const {
-  cpuCoreCount,
   createContentDigest
 } = require(`gatsby-core-utils`); // Try to enable the use of SIMD instructions. Seems to provide a smallish
 // speedup on resizing heavy loads (~10%). Sharp disables this feature by
@@ -35,11 +32,9 @@ const {
 // adventurous and see what happens with it on.
 
 
-sharp.simd(true); // Handle Sharp's concurrency based on the Gatsby CPU count
-// See: http://sharp.pixelplumbing.com/en/stable/api-utility/#concurrency
-// See: https://www.gatsbyjs.org/docs/multi-core-builds/
+sharp.simd(true); // Concurrency is handled in gatsby-worker queue instead
 
-sharp.concurrency(cpuCoreCount());
+sharp.concurrency(1);
 /**
  * @typedef DuotoneArgs
  * @property {string} highlight
@@ -67,7 +62,7 @@ sharp.concurrency(cpuCoreCount());
  * @property {import('sharp').FitEnum} fit
  */
 
-/**+
+/** +
  * @typedef {Object} Transform
  * @property {string} outputPath
  * @property {TransformArgs} args
@@ -82,7 +77,9 @@ exports.processFile = (file, transforms, options = {}) => {
   let pipeline;
 
   try {
-    pipeline = sharp(file); // Keep Metadata
+    pipeline = !options.failOnError ? sharp(file, {
+      failOnError: false
+    }) : sharp(file); // Keep Metadata
 
     if (!options.stripMetadata) {
       pipeline = pipeline.withMetadata();
@@ -140,6 +137,9 @@ exports.processFile = (file, transforms, options = {}) => {
       }).tiff({
         quality: transformArgs.quality,
         force: transformArgs.toFormat === `tiff`
+      }).avif({
+        quality: transformArgs.quality,
+        force: transformArgs.toFormat === `avif`
       }); // jpeg
 
       if (!options.useMozJpeg) {
@@ -181,11 +181,6 @@ exports.processFile = (file, transforms, options = {}) => {
         return transform;
       }
 
-      if (transformArgs.toFormat === `webp`) {
-        await compressWebP(clonedPipeline, outputPath, transformArgs);
-        return transform;
-      }
-
       try {
         await clonedPipeline.toFile(outputPath);
       } catch (err) {
@@ -206,8 +201,8 @@ exports.processFile = (file, transforms, options = {}) => {
 
 const compressPng = (pipeline, outputPath, options) => pipeline.toBuffer().then(sharpBuffer => imagemin.buffer(sharpBuffer, {
   plugins: [imageminPngquant({
-    quality: `${options.pngQuality || options.quality}-${Math.min((options.pngQuality || options.quality) + 25, 100)}`,
-    // e.g. 40-65
+    quality: [(options.pngQuality || options.quality) / 100, Math.min(((options.pngQuality || options.quality) + 25) / 100, 1)],
+    // e.g. [0.4, 0.65]
     speed: options.pngCompressionSpeed ? options.pngCompressionSpeed : undefined,
     strip: !!options.stripMetadata // Must be a bool
 
@@ -218,13 +213,6 @@ const compressJpg = (pipeline, outputPath, options) => pipeline.toBuffer().then(
   plugins: [imageminMozjpeg({
     quality: options.jpegQuality || options.quality,
     progressive: options.jpegProgressive
-  })]
-}).then(imageminBuffer => fs.writeFile(outputPath, imageminBuffer)));
-
-const compressWebP = (pipeline, outputPath, options) => pipeline.toBuffer().then(sharpBuffer => imagemin.buffer(sharpBuffer, {
-  plugins: [imageminWebp({
-    quality: options.webpQuality || options.quality,
-    metadata: options.stripMetadata ? `none` : `all`
   })]
 }).then(imageminBuffer => fs.writeFile(outputPath, imageminBuffer)));
 

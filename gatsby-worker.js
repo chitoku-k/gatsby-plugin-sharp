@@ -5,6 +5,10 @@ const path = require(`path`);
 const queue = require(`async/queue`);
 
 const {
+  cpuCoreCount
+} = require(`gatsby-core-utils`);
+
+const {
   processFile
 } = require(`./process-file`);
 
@@ -32,7 +36,7 @@ const q = queue(async ({
     outputPath: path.join(outputDir, operation.outputPath),
     args: operation.args
   };
-}), args.pluginOptions)), 1);
+}), args.pluginOptions)), cpuCoreCount());
 /**
  * @param {{inputPaths: string[], outputDir: string, args: WorkerInput}} args
  * @return Promise
@@ -42,16 +46,22 @@ exports.IMAGE_PROCESSING = ({
   inputPaths,
   outputDir,
   args
-}) => new Promise((resolve, reject) => {
-  q.push({
-    inputPaths,
-    outputDir,
-    args
-  }, function (err) {
-    if (err) {
-      return reject(err);
-    }
+}) => {
+  if (args.isLazy) {
+    return Promise.resolve();
+  }
 
-    return resolve();
+  return new Promise((resolve, reject) => {
+    q.push({
+      inputPaths,
+      outputDir,
+      args
+    }, function (err) {
+      if (err) {
+        return reject(err);
+      }
+
+      return resolve();
+    });
   });
-});
+};
