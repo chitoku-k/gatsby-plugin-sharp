@@ -6,6 +6,8 @@ exports.__esModule = true;
 exports.getImageMetadata = getImageMetadata;
 exports.generateImageData = generateImageData;
 
+var _fsExtra = _interopRequireDefault(require("fs-extra"));
+
 var _utils = require("./utils");
 
 var _ = require(".");
@@ -43,7 +45,10 @@ async function getImageMetadata(file, getDominantColor) {
   }
 
   try {
-    const pipeline = (0, _safeSharp.default)(file.absolutePath);
+    const pipeline = (0, _safeSharp.default)();
+
+    _fsExtra.default.createReadStream(file.absolutePath).pipe(pipeline);
+
     const {
       width,
       height,
@@ -202,7 +207,7 @@ async function generateImageData({
   const srcSet = (0, _utils.getSrcSet)(images);
   const sizes = args.sizes || (0, _utils.getSizes)(imageSizes.unscaledWidth, layout);
   const primaryIndex = layout === `fullWidth` ? imageSizes.sizes.length - 1 // The largest image
-  : imageSizes.sizes.findIndex(size => size === imageSizes.unscaledWidth);
+  : imageSizes.sizes.findIndex(size => size === Math.round(imageSizes.unscaledWidth));
 
   if (primaryIndex === -1) {
     reporter.error(`No image of the specified size found. Images may not have been processed correctly.`);

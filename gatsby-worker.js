@@ -31,12 +31,13 @@ const q = queue(async ({
   inputPaths,
   outputDir,
   args
-}) => Promise.all(processFile(inputPaths[0].path, args.operations.map(operation => {
+}) => processFile(inputPaths[0].path, args.operations.map(operation => {
   return {
     outputPath: path.join(outputDir, operation.outputPath),
     args: operation.args
   };
-}), args.pluginOptions)), cpuCoreCount());
+}), args.pluginOptions), // When inside query workers, we only want to use the current core
+process.env.GATSBY_WORKER_POOL_WORKER ? 1 : Math.max(1, cpuCoreCount() - 1));
 /**
  * @param {{inputPaths: string[], outputDir: string, args: WorkerInput}} args
  * @return Promise

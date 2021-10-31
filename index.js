@@ -19,10 +19,6 @@ const fs = require(`fs-extra`);
 const path = require(`path`);
 
 const {
-  scheduleJob
-} = require(`./scheduler`);
-
-const {
   createArgsDigest
 } = require(`./process-file`);
 
@@ -157,15 +153,7 @@ function createJob(job, {
   // initial job finish.
 
 
-  let promise = null;
-
-  if (actions.createJobV2) {
-    promise = actions.createJobV2(job);
-  } else {
-    promise = scheduleJob(job, actions, reporter);
-  }
-
-  promise.catch(err => {
+  const promise = actions.createJobV2(job).catch(err => {
     reporter.panic(`error converting image`, err);
   });
   return promise;
@@ -289,13 +277,15 @@ async function generateBase64({
   let pipeline;
 
   try {
-    pipeline = !options.failOnError ? sharp(file.absolutePath, {
+    pipeline = !options.failOnError ? sharp({
       failOnError: false
-    }) : sharp(file.absolutePath);
+    }) : sharp();
 
     if (!options.rotate) {
       pipeline.rotate();
     }
+
+    fs.createReadStream(file.absolutePath).pipe(pipeline);
   } catch (err) {
     reportError(`Failed to process image ${file.absolutePath}`, err, reporter);
     return null;
@@ -441,7 +431,9 @@ async function stats({
   let imgStats;
 
   try {
-    imgStats = await sharp(file.absolutePath).stats();
+    const pipeline = sharp();
+    fs.createReadStream(file.absolutePath).pipe(pipeline);
+    imgStats = await pipeline.stats();
   } catch (err) {
     reportError(`Failed to get stats for image ${file.absolutePath}`, err, reporter);
     return null;
@@ -458,14 +450,13 @@ async function fluid({
   reporter,
   cache
 }) {
-  const options = healOptions(getPluginOptions(), args, file.extension); // Account for images with a high pixel density. We assume that these types of
-  // images are intended to be displayed at their native resolution.
-
-
+  const options = healOptions(getPluginOptions(), args, file.extension);
   let metadata;
 
   try {
-    metadata = await sharp(file.absolutePath).metadata();
+    const pipeline = sharp();
+    fs.createReadStream(file.absolutePath).pipe(pipeline);
+    metadata = await pipeline.metadata();
   } catch (err) {
     reportError(`Failed to retrieve metadata from image ${file.absolutePath}`, err, reporter);
     return null;
