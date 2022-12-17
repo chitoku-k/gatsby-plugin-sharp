@@ -20,10 +20,11 @@ var _reportError = require("./report-error");
 
 /* eslint-disable no-unused-expressions */
 const DEFAULT_BLURRED_IMAGE_WIDTH = 20;
+const DOMINANT_COLOR_IMAGE_SIZE = 200;
 const DEFAULT_BREAKPOINTS = [750, 1080, 1366, 1920];
 const metadataCache = new Map();
 
-async function getImageMetadata(file, getDominantColor) {
+async function getImageMetadata(file, getDominantColor, cache) {
   if (!getDominantColor) {
     // If we don't need the dominant color we can use the cheaper size function
     const {
@@ -38,14 +39,25 @@ async function getImageMetadata(file, getDominantColor) {
     };
   }
 
-  let metadata = metadataCache.get(file.internal.contentDigest);
+  let metadata;
+  const METADATA_KEY = `metadata-${file.internal.contentDigest}`;
+
+  if (cache) {
+    // Use plugin cache
+    metadata = await cache.get(METADATA_KEY);
+  } else {
+    // Use in-memory cache instead
+    metadata = metadataCache.get(METADATA_KEY);
+  }
 
   if (metadata && process.env.NODE_ENV !== `test`) {
     return metadata;
   }
 
   try {
-    const pipeline = (0, _safeSharp.default)();
+    const pipeline = (0, _safeSharp.default)({
+      failOn: (0, _pluginOptions.getPluginOptions)().failOn
+    });
 
     _fsExtra.default.createReadStream(file.absolutePath).pipe(pipeline);
 
@@ -54,10 +66,15 @@ async function getImageMetadata(file, getDominantColor) {
       height,
       density,
       format
-    } = await pipeline.metadata();
+    } = await pipeline.metadata(); // Downsize the image before calculating the dominant color
+
+    const buffer = await pipeline.resize(DOMINANT_COLOR_IMAGE_SIZE, DOMINANT_COLOR_IMAGE_SIZE, {
+      fit: `inside`,
+      withoutEnlargement: true
+    }).toBuffer();
     const {
       dominant
-    } = await pipeline.stats(); // Fallback in case sharp doesn't support dominant
+    } = await (0, _safeSharp.default)(buffer).stats(); // Fallback in case sharp doesn't support dominant
 
     const dominantColor = dominant ? (0, _utils.rgbToHex)(dominant.r, dominant.g, dominant.b) : `#000000`;
     metadata = {
@@ -67,7 +84,12 @@ async function getImageMetadata(file, getDominantColor) {
       format,
       dominantColor
     };
-    metadataCache.set(file.internal.contentDigest, metadata);
+
+    if (cache) {
+      await cache.set(METADATA_KEY, metadata);
+    } else {
+      metadataCache.set(METADATA_KEY, metadata);
+    }
   } catch (err) {
     (0, _reportError.reportError)(`Failed to process image ${file.absolutePath}`, err);
     return {};
@@ -84,6 +106,8 @@ function normalizeFormat(format) {
   return format;
 }
 
+let didShowTraceSVGRemovalWarning = false;
+
 async function generateImageData({
   file,
   args,
@@ -92,7 +116,7 @@ async function generateImageData({
   cache
 }) {
   args = (0, _pluginOptions.mergeDefaults)(args);
-  const {
+  let {
     layout = `constrained`,
     placeholder = `dominantColor`,
     tracedSVGOptions = {},
@@ -108,6 +132,15 @@ async function generateImageData({
     args.breakpoints = (_args$breakpoints = args.breakpoints) !== null && _args$breakpoints !== void 0 && _args$breakpoints.length ? args.breakpoints : DEFAULT_BREAKPOINTS;
   }
 
+  if (placeholder === `tracedSVG`) {
+    if (!didShowTraceSVGRemovalWarning) {
+      console.warn(`"TRACED_SVG" placeholder argument value is no longer supported (used in gatsbyImageData processing), falling back to "DOMINANT_COLOR". See https://gatsby.dev/tracesvg-removal/`);
+      didShowTraceSVGRemovalWarning = true;
+    }
+
+    placeholder = `dominantColor`;
+  }
+
   const {
     fit = `cover`,
     cropFocus = _safeSharp.default.strategy.attention,
@@ -118,7 +151,7 @@ async function generateImageData({
     reporter.warn(`Invalid duotone option specified for ${file.absolutePath}, ignoring. Please pass an object to duotone with the keys "highlight" and "shadow" set to the corresponding hex values you want to use.`);
   }
 
-  const metadata = await getImageMetadata(file, placeholder === `dominantColor`);
+  const metadata = await getImageMetadata(file, placeholder === `dominantColor`, cache);
 
   if ((args.width || args.height) && layout === `fullWidth`) {
     reporter.warn(`Specifying fullWidth images will ignore the width and height arguments, you may want a constrained image instead. Otherwise, use the breakpoints argument.`);
@@ -306,19 +339,8 @@ async function generateImageData({
         ...options,
         toFormatBase64: (_args$blurredOptions2 = args.blurredOptions) === null || _args$blurredOptions2 === void 0 ? void 0 : _args$blurredOptions2.toFormat,
         width: placeholderWidth,
-        height: Math.round(placeholderWidth / imageSizes.aspectRatio)
+        height: Math.max(1, Math.round(placeholderWidth / imageSizes.aspectRatio))
       },
-      reporter
-    });
-    imageProps.placeholder = {
-      fallback
-    };
-  } else if (placeholder === `tracedSVG`) {
-    const fallback = await (0, _.traceSVG)({
-      file,
-      args: tracedSVGOptions,
-      fileArgs: args,
-      cache,
       reporter
     });
     imageProps.placeholder = {

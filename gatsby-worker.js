@@ -6,7 +6,7 @@ const queue = require(`async/queue`);
 
 const {
   cpuCoreCount
-} = require(`gatsby-core-utils`);
+} = require(`gatsby-core-utils/cpu-core-count`);
 
 const {
   processFile

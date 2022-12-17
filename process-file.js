@@ -1,86 +1,50 @@
 "use strict";
 
-const sharp = require(`./safe-sharp`);
+var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
 
-const fs = require(`fs-extra`);
+exports.__esModule = true;
+exports.createArgsDigest = exports.processFile = void 0;
 
-const path = require(`path`);
+var _safeSharp = _interopRequireDefault(require("./safe-sharp"));
 
-const debug = require(`debug`)(`gatsby:gatsby-plugin-sharp`);
+var _fsExtra = _interopRequireDefault(require("fs-extra"));
 
-const duotone = require(`./duotone`);
+var _path = _interopRequireDefault(require("path"));
 
-const {
-  healOptions
-} = require(`./plugin-options`);
+var _debug = _interopRequireDefault(require("debug"));
 
-const {
-  SharpError
-} = require(`./sharp-error`);
+var _createContentDigest = require("gatsby-core-utils/create-content-digest");
 
-const {
-  createContentDigest
-} = require(`gatsby-core-utils`); // Try to enable the use of SIMD instructions. Seems to provide a smallish
+var _duotone = _interopRequireDefault(require("./duotone"));
+
+var _pluginOptions = require("./plugin-options");
+
+var _sharpError = require("./sharp-error");
+
+const log = (0, _debug.default)(`gatsby:gatsby-plugin-sharp`); // Try to enable the use of SIMD instructions. Seems to provide a smallish
 // speedup on resizing heavy loads (~10%). Sharp disables this feature by
 // default as there's been problems with segfaulting in the past but we'll be
 // adventurous and see what happens with it on.
 
+_safeSharp.default.simd(true); // Concurrency is handled in gatsby-worker queue instead
 
-sharp.simd(true); // Concurrency is handled in gatsby-worker queue instead
 
-sharp.concurrency(1);
-/**
- * @typedef DuotoneArgs
- * @property {string} highlight
- * @property {string} shadow
- * @property {number} opacity
- */
+_safeSharp.default.concurrency(1);
 
-/**
- * @typedef {Object} TransformArgs
- * @property {number} height
- * @property {number} width
- * @property {number} cropFocus
- * @property {string} toFormat
- * @property {number} pngCompressionLevel
- * @property {number} quality
- * @property {number} jpegQuality
- * @property {number} pngQuality
- * @property {number} webpQuality
- * @property {boolean} jpegProgressive
- * @property {boolean} grayscale
- * @property {number} rotate
- * @property {number} trim
- * @property {DuotoneArgs} duotone
- * @property {string} background
- * @property {import('sharp').FitEnum} fit
- */
-
-/** +
- * @typedef {Object} Transform
- * @property {string} outputPath
- * @property {TransformArgs} args
- */
-
-/**
- * @param {String} file
- * @param {Transform[]} transforms
- */
-
-exports.processFile = async (file, transforms, options = {}) => {
+const processFile = async (file, transforms, options = {}) => {
   let pipeline;
 
   try {
-    const inputBuffer = await fs.readFile(file);
-    pipeline = !options.failOnError ? sharp(inputBuffer, {
-      failOnError: false
-    }) : sharp(inputBuffer); // Keep Metadata
+    const inputBuffer = await _fsExtra.default.readFile(file);
+    pipeline = (0, _safeSharp.default)(inputBuffer, {
+      failOn: options.failOn
+    }); // Keep Metadata
 
     if (!options.stripMetadata) {
       pipeline = pipeline.withMetadata();
     }
   } catch (err) {
-    throw new SharpError(`Failed to load image ${file} into sharp.`, err);
+    throw new _sharpError.SharpError(`Failed to load image ${file} into sharp.`, err);
   }
 
   return Promise.all(transforms.map(async transform => {
@@ -89,9 +53,9 @@ exports.processFile = async (file, transforms, options = {}) => {
         outputPath,
         args
       } = transform;
-      debug(`Start processing ${outputPath}`);
-      await fs.ensureDir(path.dirname(outputPath));
-      const transformArgs = healOptions({
+      log(`Start processing ${outputPath}`);
+      await _fsExtra.default.ensureDir(_path.default.dirname(outputPath));
+      const transformArgs = (0, _pluginOptions.healOptions)({
         defaultQuality: options.defaultQuality
       }, args);
       let clonedPipeline = transforms.length > 1 ? pipeline.clone() : pipeline;
@@ -154,29 +118,33 @@ exports.processFile = async (file, transforms, options = {}) => {
 
 
       if (transformArgs.duotone) {
-        clonedPipeline = await duotone(transformArgs.duotone, transformArgs.toFormat, clonedPipeline);
+        clonedPipeline = await (0, _duotone.default)(transformArgs.duotone, transformArgs.toFormat, clonedPipeline);
       }
 
       try {
         const buffer = await clonedPipeline.toBuffer();
-        await fs.writeFile(outputPath, buffer);
+        await _fsExtra.default.writeFile(outputPath, buffer);
       } catch (err) {
         throw new Error(`Failed to write ${file} into ${outputPath}. (${err.message})`);
       }
     } catch (err) {
-      if (err instanceof SharpError) {
+      if (err instanceof _sharpError.SharpError) {
         // rethrow
         throw err;
       }
 
-      throw new SharpError(`Processing ${file} failed`, err);
+      throw new _sharpError.SharpError(`Processing ${file} failed`, err);
     }
 
     return transform;
   }));
 };
 
-exports.createArgsDigest = args => {
-  const argsDigest = createContentDigest(args);
-  return argsDigest.substr(argsDigest.length - 5);
+exports.processFile = processFile;
+
+const createArgsDigest = args => {
+  const argsDigest = (0, _createContentDigest.createContentDigest)(args);
+  return argsDigest.slice(-5);
 };
+
+exports.createArgsDigest = createArgsDigest;

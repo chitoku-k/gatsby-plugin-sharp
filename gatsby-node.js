@@ -14,29 +14,13 @@ const {
 
 const {
   slash
-} = require(`gatsby-core-utils`);
+} = require(`gatsby-core-utils/path`);
 
 const {
   setPluginOptions
 } = require(`./plugin-options`);
 
 const path = require(`path`);
-
-let coreSupportsOnPluginInit;
-
-try {
-  const {
-    isGatsbyNodeLifecycleSupported
-  } = require(`gatsby-plugin-utils`);
-
-  if ("4" === `4`) {
-    coreSupportsOnPluginInit = isGatsbyNodeLifecycleSupported(`onPluginInit`);
-  } else {
-    coreSupportsOnPluginInit = isGatsbyNodeLifecycleSupported(`unstable_onPluginInit`);
-  }
-} catch (e) {
-  coreSupportsOnPluginInit = false;
-}
 
 function removeCachedValue(cache, key) {
   var _cache$cache;
@@ -157,26 +141,15 @@ exports.onPostBootstrap = async ({
       }
     }
   }
-};
+}; // to properly initialize plugin in worker (`onPreBootstrap` won't run in workers)
 
-if (coreSupportsOnPluginInit) {
-  // to properly initialize plugin in worker (`onPreBootstrap` won't run in workers)
-  if ("4" === `4`) {
-    exports.onPluginInit = async ({
-      actions
-    }, pluginOptions) => {
-      setActions(actions);
-      setPluginOptions(pluginOptions);
-    };
-  } else {
-    exports.unstable_onPluginInit = async ({
-      actions
-    }, pluginOptions) => {
-      setActions(actions);
-      setPluginOptions(pluginOptions);
-    };
-  }
-}
+
+exports.onPluginInit = async ({
+  actions
+}, pluginOptions) => {
+  setActions(actions);
+  setPluginOptions(pluginOptions);
+};
 
 exports.onPreBootstrap = async ({
   actions,
@@ -247,7 +220,9 @@ exports.pluginOptionsSchema = ({
   useMozJpeg: Joi.boolean().description(`The the mozJpeg library for encoding. Defaults to false, unless \`process.env.GATSBY_JPEG_ENCODER\` === \`MOZJPEG\``),
   stripMetadata: Joi.boolean().default(true),
   defaultQuality: Joi.number().default(50),
+  // TODO(v6): Remove deprecated failOnError option
   failOnError: Joi.boolean().default(true),
+  failOn: Joi.any().valid(`none`, `truncated`, `error`, `warning`).default(`warning`).description(`Level of sensitivity to invalid images`),
   defaults: Joi.object({
     formats: Joi.array().items(Joi.string().valid(`auto`, `png`, `jpg`, `webp`, `avif`)),
     placeholder: Joi.string().valid(`tracedSVG`, `dominantColor`, `blurred`, `none`),
@@ -262,4 +237,20 @@ exports.pluginOptionsSchema = ({
     webpOptions: Joi.object(),
     avifOptions: Joi.object()
   }).description(`Default options used by gatsby-plugin-image. \nSee https://gatsbyjs.com/docs/reference/built-in-components/gatsby-plugin-image/`)
+}).custom(value => {
+  const shouldNotFailOnError = !value.failOnError;
+
+  if (shouldNotFailOnError) {
+    // show this warning only once in main process
+    if (!process.env.GATSBY_WORKER_ID) {
+      console.warn(`[gatsby-plugin-sharp]: The "failOnError" option is deprecated. Please use "failOn" instead.`);
+    }
+
+    return { ...value,
+      failOn: `none`
+    };
+  }
+
+  return { ...value
+  };
 });
