@@ -1,23 +1,16 @@
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
-
 exports.__esModule = true;
+exports.createTransformObject = void 0;
 exports.doMergeDefaults = doMergeDefaults;
-exports.removeDefaultValues = exports.healOptions = exports.mergeDefaults = exports.createTransformObject = exports.getPluginOptionsDefaults = exports.getPluginOptions = exports.setPluginOptions = void 0;
-
+exports.setPluginOptions = exports.removeDefaultValues = exports.mergeDefaults = exports.healOptions = exports.getPluginOptionsDefaults = exports.getPluginOptions = void 0;
 var _identity2 = _interopRequireDefault(require("lodash/identity"));
-
 var _isNil2 = _interopRequireDefault(require("lodash/isNil"));
-
 var _omitBy2 = _interopRequireDefault(require("lodash/omitBy"));
-
 var _mergeWith2 = _interopRequireDefault(require("lodash/mergeWith"));
-
 var _defaults2 = _interopRequireDefault(require("lodash/defaults"));
-
 var _pickBy2 = _interopRequireDefault(require("lodash/pickBy"));
-
 // Plugin options are loaded onPreBootstrap in gatsby-node
 const pluginDefaults = {
   base64Width: 20,
@@ -48,27 +41,20 @@ const generalArgs = {
   rotate: 0
 };
 let pluginOptions = Object.assign({}, pluginDefaults);
-
 const setPluginOptions = opts => {
   pluginOptions = Object.assign({}, pluginOptions, opts);
   generalArgs.quality = pluginOptions.defaultQuality;
   return pluginOptions;
 };
-
 exports.setPluginOptions = setPluginOptions;
-
 const getPluginOptions = () => pluginOptions;
-
 exports.getPluginOptions = getPluginOptions;
-
 const getPluginOptionsDefaults = () => pluginDefaults;
+
 /**
  * Creates a transform object
  */
-
-
 exports.getPluginOptionsDefaults = getPluginOptionsDefaults;
-
 const createTransformObject = args => {
   const options = {
     height: args.height,
@@ -87,78 +73,68 @@ const createTransformObject = args => {
     duotone: args.duotone ? args.duotone : null,
     fit: args.fit,
     background: args.background
-  }; // get all non falsey values
+  };
 
+  // get all non falsey values
   return (0, _pickBy2.default)(options, _identity2.default);
 };
+
 /**
  * Used for gatsbyImageData and StaticImage only
  */
-
-
 exports.createTransformObject = createTransformObject;
-
 const mergeDefaults = args => doMergeDefaults(args, pluginOptions.defaults);
-
 exports.mergeDefaults = mergeDefaults;
-
 const customizer = (objValue, srcValue) => Array.isArray(objValue) ? srcValue : undefined;
-
 function doMergeDefaults(args, defaults) {
   if (!defaults) {
     return args;
   }
-
   return (0, _mergeWith2.default)({}, defaults, args, customizer);
 }
-
 const healOptions = ({
   defaultQuality: quality,
   base64Width
 }, args, fileExtension = ``, defaultArgs = {}) => {
   var _options$toFormatBase;
-
   const options = (0, _defaults2.default)({}, args, {
     quality
-  }, defaultArgs, generalArgs); // @ts-ignore - parseInt as safeguard, expects string tho
-
-  options.quality = parseInt(options.quality, 10); // @ts-ignore - parseInt as safeguard, expects string tho
-
-  options.pngCompressionLevel = parseInt(options.pngCompressionLevel, 10); // @ts-ignore - parseInt as safeguard, expects string tho
-
+  }, defaultArgs, generalArgs);
+  // @ts-ignore - parseInt as safeguard, expects string tho
+  options.quality = parseInt(options.quality, 10);
+  // @ts-ignore - parseInt as safeguard, expects string tho
+  options.pngCompressionLevel = parseInt(options.pngCompressionLevel, 10);
+  // @ts-ignore - parseInt as safeguard, expects string tho
   options.pngCompressionSpeed = parseInt(options.pngCompressionSpeed, 10);
   options.toFormat = options.toFormat.toLowerCase();
   options.toFormatBase64 = (_options$toFormatBase = options.toFormatBase64) === null || _options$toFormatBase === void 0 ? void 0 : _options$toFormatBase.toLowerCase();
-  options.base64Width = options.base64Width || base64Width; // when toFormat is not set we set it based on fileExtension
+  options.base64Width = options.base64Width || base64Width;
 
+  // when toFormat is not set we set it based on fileExtension
   if (options.toFormat === ``) {
     if (!fileExtension) {
       throw new Error(`toFormat seems to be empty, we need a fileExtension to set it.`);
     }
-
     options.toFormat = fileExtension.toLowerCase();
-
     if (fileExtension === `jpeg`) {
       options.toFormat = `jpg`;
     }
-  } // only set width to 400 if neither width nor height is passed
+  }
 
-
+  // only set width to 400 if neither width nor height is passed
   if (options.width === undefined && options.height === undefined) {
     options.width = 400;
   }
-
   if (options.width !== undefined) {
     // @ts-ignore - parseInt as safeguard, expects string tho
     options.width = parseInt(options.width, 10);
   }
-
   if (options.height !== undefined) {
     // @ts-ignore - parseInt as safeguard, expects string tho
     options.height = parseInt(options.height, 10);
-  } // only set maxWidth to 800 if neither maxWidth nor maxHeight is passed
+  }
 
-
+  // only set maxWidth to 800 if neither maxWidth nor maxHeight is passed
   if (options.maxWidth === undefined && options.maxHeight === undefined) {
     options.maxWidth = 800;
   } else if (options.maxWidth !== undefined) {
@@ -168,7 +144,6 @@ const healOptions = ({
     // @ts-ignore - parseInt as safeguard, expects string tho
     options.maxHeight = parseInt(options.maxHeight, 10);
   }
-
   ;
   [`width`, `height`, `maxWidth`, `maxHeight`].forEach(prop => {
     if (typeof options[prop] !== `undefined` && options[prop] < 1) {
@@ -177,13 +152,11 @@ const healOptions = ({
   });
   return options;
 };
+
 /**
  * Removes all default values so we have the smallest transform args
  */
-
-
 exports.healOptions = healOptions;
-
 const removeDefaultValues = (args, pluginOptions) => {
   const options = {
     height: args.height,
@@ -205,5 +178,4 @@ const removeDefaultValues = (args, pluginOptions) => {
   };
   return (0, _omitBy2.default)(options, _isNil2.default);
 };
-
 exports.removeDefaultValues = removeDefaultValues;

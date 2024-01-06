@@ -1,52 +1,41 @@
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
-
 exports.__esModule = true;
-exports.createArgsDigest = exports.processFile = void 0;
-
+exports.processFile = exports.createArgsDigest = void 0;
 var _safeSharp = _interopRequireDefault(require("./safe-sharp"));
-
 var _fsExtra = _interopRequireDefault(require("fs-extra"));
-
 var _path = _interopRequireDefault(require("path"));
-
 var _debug = _interopRequireDefault(require("debug"));
-
 var _createContentDigest = require("gatsby-core-utils/create-content-digest");
-
 var _duotone = _interopRequireDefault(require("./duotone"));
-
 var _pluginOptions = require("./plugin-options");
-
 var _sharpError = require("./sharp-error");
+const log = (0, _debug.default)(`gatsby:gatsby-plugin-sharp`);
 
-const log = (0, _debug.default)(`gatsby:gatsby-plugin-sharp`); // Try to enable the use of SIMD instructions. Seems to provide a smallish
+// Try to enable the use of SIMD instructions. Seems to provide a smallish
 // speedup on resizing heavy loads (~10%). Sharp disables this feature by
 // default as there's been problems with segfaulting in the past but we'll be
 // adventurous and see what happens with it on.
+_safeSharp.default.simd(true);
 
-_safeSharp.default.simd(true); // Concurrency is handled in gatsby-worker queue instead
-
-
+// Concurrency is handled in gatsby-worker queue instead
 _safeSharp.default.concurrency(1);
-
 const processFile = async (file, transforms, options = {}) => {
   let pipeline;
-
   try {
     const inputBuffer = await _fsExtra.default.readFile(file);
     pipeline = (0, _safeSharp.default)(inputBuffer, {
       failOn: options.failOn
-    }); // Keep Metadata
+    });
 
+    // Keep Metadata
     if (!options.stripMetadata) {
       pipeline = pipeline.withMetadata();
     }
   } catch (err) {
     throw new _sharpError.SharpError(`Failed to load image ${file} into sharp.`, err);
   }
-
   return Promise.all(transforms.map(async transform => {
     try {
       const {
@@ -59,29 +48,23 @@ const processFile = async (file, transforms, options = {}) => {
         defaultQuality: options.defaultQuality
       }, args);
       let clonedPipeline = transforms.length > 1 ? pipeline.clone() : pipeline;
-
       if (transformArgs.trim) {
         clonedPipeline = clonedPipeline.trim(transformArgs.trim);
       }
-
       if (!transformArgs.rotate) {
         clonedPipeline = clonedPipeline.rotate();
-      } // Sharp only allows ints as height/width. Since both aren't always
+      }
+
+      // Sharp only allows ints as height/width. Since both aren't always
       // set, check first before trying to round them.
-
-
       let roundedHeight = transformArgs.height;
-
       if (roundedHeight) {
         roundedHeight = Math.round(roundedHeight);
       }
-
       let roundedWidth = transformArgs.width;
-
       if (roundedWidth) {
         roundedWidth = Math.round(roundedWidth);
       }
-
       clonedPipeline.resize(roundedWidth, roundedHeight, {
         position: transformArgs.cropFocus,
         fit: transformArgs.fit,
@@ -105,22 +88,22 @@ const processFile = async (file, transforms, options = {}) => {
         quality: transformArgs.jpegQuality || transformArgs.quality,
         progressive: transformArgs.jpegProgressive,
         force: transformArgs.toFormat === `jpg`
-      }); // grayscale
+      });
 
+      // grayscale
       if (transformArgs.grayscale) {
         clonedPipeline = clonedPipeline.grayscale();
-      } // rotate
+      }
 
-
+      // rotate
       if (transformArgs.rotate && transformArgs.rotate !== 0) {
         clonedPipeline = clonedPipeline.rotate(transformArgs.rotate);
-      } // duotone
+      }
 
-
+      // duotone
       if (transformArgs.duotone) {
         clonedPipeline = await (0, _duotone.default)(transformArgs.duotone, transformArgs.toFormat, clonedPipeline);
       }
-
       try {
         const buffer = await clonedPipeline.toBuffer();
         await _fsExtra.default.writeFile(outputPath, buffer);
@@ -132,19 +115,14 @@ const processFile = async (file, transforms, options = {}) => {
         // rethrow
         throw err;
       }
-
       throw new _sharpError.SharpError(`Processing ${file} failed`, err);
     }
-
     return transform;
   }));
 };
-
 exports.processFile = processFile;
-
 const createArgsDigest = args => {
   const argsDigest = (0, _createContentDigest.createContentDigest)(args);
   return argsDigest.slice(-5);
 };
-
 exports.createArgsDigest = createArgsDigest;
